@@ -11,5 +11,5 @@ if __name__ == "__main__":
     elo_application.deserialize_matches(MATCHES_FILE_PATH)
     elo_application.update_all_elo()
 
-    # Loop for the CLI (Command Line Interface)
+    # 4. Avvia la CLI (interfaccia a riga di comando)
     GoalMindCli(elo_application).cmdloop()
