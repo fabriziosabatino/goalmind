@@ -4,6 +4,7 @@ from data_structure.team import Team
 
 import pandas as pd
 
+
 class EloApplication:
     DEFAULT_K = 25
     DEFAULT_HOME_ADVANTAGE = 40
@@ -26,6 +27,7 @@ class EloApplication:
             self._teams[match.away_team_name] = Team(match.away_team_name)
 
     def deserialize_matches(self, file_path: str, start_date: str = "2020-08-01"):
+        print(f"Deserializing matches from {file_path}")
         df = pd.read_csv(file_path, dtype={2: str})
 
         matches = []
@@ -39,6 +41,7 @@ class EloApplication:
                 ))
 
     def deserialize_players(self, file_path: str):
+        print(f"Deserializing players from {file_path}")
         df = pd.read_csv(file_path)
         players = {}
 
@@ -86,9 +89,17 @@ class EloApplication:
     def find_team(self, name :str):
         return self._teams.get(name)
 
-    def _prob_goal_versus(self, player :Player, team :Team):
-        #find formula and put in
-        return 0
+    def _prob_goal_versus(self, player: Player, team: Team):
+        elo_def = team.elo
+
+        base_prob = player.prob_goal()
+        
+        def_factor = 1 / (1 + Team.ELO_BASE ** ((elo_def - 1500) / Team.ELO_SCALE))
+
+        adj_def_factor = def_factor * 2
+        final_prob = base_prob * adj_def_factor
+
+        return max(0, min(final_prob, 1))
 
     def print_score_probability(self, player_name :str, team_name :str):
         player = self.find_player(player_name)
