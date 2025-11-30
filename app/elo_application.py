@@ -3,6 +3,10 @@ from data_structure.player import Player
 from data_structure.team import Team
 
 import pandas as pd
+import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class EloApplication:
@@ -13,6 +17,78 @@ class EloApplication:
         self._players = {}
         self._teams = {}
         self._matches = []
+
+    def analyze_statistics(self):
+        print("--- Statistical Analysis ---")
+        data = []
+        for player in self._players.values():
+            matches_played = player.mins_played / 90
+            estimated_total_xg = player.xgperninety * matches_played
+
+            data.append({
+                "Name": player.name,
+                "Goals": player.goal,
+                "xG_Total": estimated_total_xg,
+                "Rating": player.rating
+            })
+
+        df = pd.DataFrame(data)
+        # Filter to avoid empty or null data
+        df = df[df['xG_Total'] > 0]
+
+        if df.empty:
+            print("Insufficient data for analysis.")
+            return
+
+        # Calculate Pearson correlation
+        correlation, p_value = stats.pearsonr(df['xG_Total'], df['Goals'])
+
+        print(f"Correlation between total xG and Goals scored: {correlation:.3f}")
+        print(f"Statistical significance (p-value): {p_value:.5f}")
+
+        mean_rating = np.mean(df['Rating'])
+        std_rating = np.std(df['Rating'])
+        print(f"Mean Rating: {mean_rating:.2f} (Std Dev: {std_rating:.2f})")
+
+    def visualize_data(self):
+        print("Generating plots...")
+        player_data = []
+        for p in self._players.values():
+            if p.mins_played > 500:  # Filter players with few minutes
+                player_data.append({
+                    "Goals": p.goal,
+                    "xG": p.xgperninety * (p.mins_played / 90),
+                    "Team": p.team
+                })
+        df_players = pd.DataFrame(player_data)
+
+        if not df_players.empty:
+            # Plot 1: Goals vs Expected Goals
+            plt.figure(figsize=(10, 6))
+            sns.scatterplot(data=df_players, x='xG', y='Goals', hue='Team', legend=False, alpha=0.7)
+
+            # Reference line (perfect prediction)
+            max_val = max(df_players['xG'].max(), df_players['Goals'].max())
+            plt.plot([0, max_val], [0, max_val], 'r--', label='Expected Performance')
+
+            plt.title('Player Performance: Real Goals vs Expected Goals (xG)')
+            plt.xlabel('Expected Goals (xG)')
+            plt.ylabel('Scored Goals')
+            plt.legend()
+            plt.show()
+
+        team_data = [{"Team": t.name, "ELO": t.elo} for t in self._teams.values()]
+        df_teams = pd.DataFrame(team_data)
+
+        if not df_teams.empty:
+            # Plot 2: Top Teams by ELO
+            df_teams = df_teams.sort_values(by="ELO", ascending=False).head(15)
+            plt.figure(figsize=(12, 6))
+            sns.barplot(data=df_teams, x="ELO", y="Team", palette="viridis")
+            plt.title('Top 15 Teams by ELO Rating')
+            plt.xlabel('ELO Score')
+            plt.xlim(1400, df_teams['ELO'].max() + 50)
+            plt.show()
 
     def _register_player(self, player :Player):
         self._players[player.name] = player
