@@ -1,120 +1,147 @@
-Goal Probability Predictor (ELO-Based)
-Object-Oriented Programming (OOP)
+# GoalMind
 
-ELO Rating System Implementation
+Progetto Python per esplorare statistiche dei calciatori, risultati storici ed Elo delle squadre. La domanda è: **come cambia una stima della probabilità di segnare almeno un gol al variare dei minuti giocati e dei gol subiti dall'avversaria?**
 
-Statistical Modeling
+Il progetto offre un notebook Jupyter per la presentazione e una CLI. Entrambe le interfacce importano gli stessi moduli: il notebook non duplica la logica dell'analisi.
 
-Modular Architecture
+## Installazione ed esecuzione
 
-The main question explored is: What is the probability of a specific player scoring a goal against a specific team, considering the team's defensive strength?
+Verificato con Python 3.12; usare Python 3.11 o successivo.
 
-While a player has a generic probability of scoring (based on their personal stats), this project calculates a context-aware probability by weighing that base skill against the opponent's dynamic ELO rating.
+```bash
+git clone https://github.com/fabriziosabatino/goalmind.git
+cd goalmind
+python -m venv .venv
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -r requirements-notebook.txt
+python -m notebook goalmind.ipynb
+```
 
-Project Structure
-Plaintext
-football-predictor/
-├── data/
-│   └── players_data.csv        # Raw stats input
-│
-├── data_structure/             # Core Logic (OOP)
-│   ├── match.py                # Calculation engine (Player vs Team logic)
-│   ├── player.py               # Player attributes and base form/xG
-│   └── team.py                 # Team ELO management
-│
-├── deserializer/
-│   └── player_deserializer.py  # Data loading and object creation
-│
-├── main.py                     # Execution script
-└── README.md
-Features
-1. Team ELO System (data_structure/team.py)
+Nel notebook scegliere **Restart Kernel and Run All Cells**. Per usare solo la CLI basta installare `requirements.txt`:
 
-Implements a dynamic rating system for teams.
+```bash
+python -m pip install -r requirements.txt
+python main.py
+```
 
-Attributes: Tracks team name and current elo (starting standard is 1500).
+I percorsi predefiniti sono relativi a `main.py`, quindi l'avvio funziona anche da un'altra directory. Si possono specificare CSV alternativi e limiti temporali inclusivi:
 
-Constants: Defines ELO_BASE (10) and ELO_SCALE (400) to standardize calculations.
+```bash
+python main.py --start-date 2020-08-01 --end-date 2025-06-01
+python main.py --players /path/players.csv --matches /path/matches.csv
+```
 
-Logic: The ELO represents the team's defensive solidity, used to dampen or amplify an opponent's scoring chance.
+Comandi della CLI:
 
-2. Player Statistics Modeling (data_structure/player.py)
+```text
+searchplayer "Mohamed Salah"
+searchplayer "Juan Cruz" "Leganes"
+searchteam Bayern
+scoreprob "Mohamed Salah" "Arsenal" 60
+scoreprob "Juan Cruz" "Barcelona" 90 "Leganes"
+analysis
+analysis outputs
+export outputs
+exit
+```
 
-Encapsulates individual player performance.
+`analysis outputs` salva i grafici senza aprire finestre; `export outputs` salva le tabelle CSV. I nomi sono cercati ignorando maiuscole, accenti e spazi ridondanti. Gli alias delle squadre sono espliciti; un nome ambiguo richiede la squadra del giocatore.
 
-Base Probability: Calculates a player's generic threat level using metrics like Expected Goals (xG) per 90, Goals, and Assists.
+## Dati e qualità
 
-Form Index: Computes a weighted index (e.g., 50% xG, 30% Goals, 20% Assists) to determine the player's current condition before the match context is applied.
+I CSV già presenti nel repository sono:
 
-3. Contextual Goal Probability (data_structure/match.py)
+| File | Contenuto | Dimensioni originali |
+| --- | --- | --- |
+| `import/Football_Player_Data-Analysis.csv` | Statistiche aggregate dei calciatori, minuti, gol, xG, xG/90 e rating | 1.533 righe, 32 colonne |
+| `import/Matches.csv` | Risultati di più campionati tra 28/07/2000 e 01/06/2025 | 230.557 righe, 48 colonne |
 
-This is the core analytical engine. It adjusts the player's base stats based on the specific opponent.
+**Provenienza da completare prima della consegna:** gli URL originali, la licenza e la data di estrazione non sono documentati nel repository iniziale. Il file dei giocatori non contiene una data di osservazione o una stagione: il progetto non inventa queste informazioni. Recuperare e indicare la fonte di entrambi i CSV e l'intervallo esatto delle statistiche dei giocatori.
 
-Input: Takes a Player object (attacker) and a Team object (defender).
+Il caricamento:
 
-Algorithm:
+- conserva tutte le 1.533 osservazioni, comprese le due righe di Juan Cruz in squadre diverse;
+- tratta `-` e valori mancanti come dati assenti, non come zero: 28 righe non hanno xG/90 disponibile;
+- controlla colonne e valori numerici, esclude partite senza data/nome/punteggio valido e rende visibili i conteggi;
+- elimina duplicati esatti dei risultati e rifiuta punteggi discordanti per la stessa partita;
+- usa 22 alias espliciti per collegare le squadre dei due CSV, senza abbinamenti approssimativi;
+- ordina le partite per data e orario prima di aggiornare l'Elo.
 
-Retrieves the Player's base probability (e.g., xgperninety).
+Con i dati forniti, dalla data predefinita 01/08/2020 si caricano **57.709 partite**, tutte le squadre dei giocatori trovano uno storico e vengono rilevate 3 righe con risultati mancanti nell'intero CSV (precedenti all'intervallo predefinito). I risultati restano storici: i file non si aggiornano automaticamente.
 
-Calculates a defensive factor based on the Team's ELO deviation from the average (1500).
+## Metodi e ipotesi
 
-Mathematical Adjustment:
+### Elo
 
-DefFactor= 
-1+Base 
-Scale
-Elo−1500
-​	
- 
- 
-1
-​	
- 
-Returns a final probability bounded between 0 and 1.
+Ogni squadra parte da 1.500. Per la squadra di casa:
 
-4. Data Deserialization (deserializer/)
+\[
+E_H = \frac{1}{1 + 10^{(R_A-R_H-H)/400}},\qquad
+\Delta = K(S_H-E_H).
+\]
 
-Parses raw CSV data to instantiate Player objects, ensuring clean separation between data storage and business logic.
+`K=25`, vantaggio casa `H=40`, risultato `S_H=1`, `0.5`, `0` per vittoria, pareggio, sconfitta. La squadra di casa guadagna `delta` e quella ospite perde lo stesso valore. Le aspettative vengono calcolate prima di aggiornare i rating. Ripetere `update_all_elo()` ricostruisce il rating dalla base: non conta le partite due volte.
 
-Logic Explanation
-The system distinguishes between Generic Ability and Match-Specific Probability:
+L'Elo misura **forza complessiva**, non difesa. `E_H` è un punteggio atteso, non la probabilità di vincere: da solo non separa vittorie e pareggi. Campionati privi di partite tra loro non hanno una scala comune calibrata: le classifiche visualizzate sono filtrate per divisione. Anche cambi di divisione e scelta della data iniziale influenzano i rating.
 
-Generic Ability: Defined in player.py. This is the player's raw statistical likelihood of scoring against an "average" team.
+### Stima dei gol
 
-Match-Specific Probability: Defined in match.py.
+Assumendo un conteggio dei gol di Poisson con intensità costante:
 
-If the opponent has a High ELO (Strong Defense), the logic calculates a def_factor < 1, reducing the player's chance to score.
+\[
+\lambda = \mathrm{xG/90}\,\frac{m}{90}\,d,\qquad
+P(G\geq 1)=1-e^{-\lambda}.
+\]
 
-If the opponent has a Low ELO (Weak Defense), the factor adjusts upward, increasing the player's probability.
+`m` è il numero di minuti ipotizzati (0–120). `d=1` dà la stima di base. Per un'avversaria della stessa ultima divisione osservata:
 
-Installation
-Bash
-git clone <your-repo-url>
-cd football-predictor
-python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-pip install -r requirements.txt
-Usage
-Python
-from data_structure.team import Team
-from data_structure.player import Player
-from data_structure.match import _prob_goal_versus
+\[
+d = \frac{\text{gol subiti dall'avversaria / partite dell'avversaria}}
+{\text{media gol per squadra-partita nel campionato}}.
+\]
 
-# 1. Create entities
-inter = Team("Inter") # Starts with ELO 1500
-lautaro = Player(name="Lautaro", xgperninety=0.65, ...)
+Il fattore usa gli ultimi 365 giorni rispetto all'ultima partita caricata, nell'ultima divisione dell'avversaria, e richiede almeno 5 partite. La media di campionato usa lo stesso intervallo disponibile. Con una data iniziale più recente, la finestra disponibile può essere più breve di 365 giorni. Un fattore inferiore a uno riduce l'intensità; uno superiore la aumenta. La correzione viene applicata all'intensità prima della trasformazione in probabilità.
 
-# 2. Simulate defensive strength change
-inter.elo = 1600  # Stronger defense
+Esempio: Salah ha `xG/90=0.75`, quindi per 90 minuti contro un'avversaria media `1-exp(-0.75)=52.76%`. Per 60 minuti la stima di base è `39.35%`. Non viene trasformato automaticamente in un 100% come nel punteggio originale.
 
-# 3. Calculate specific probability
-prob = _prob_goal_versus(lautaro, inter)
-print(f"Probability of Lautaro scoring vs Inter: {prob:.2%}")
-Skills Demonstrated
-Python & OOP: Clean class structures with inheritance and encapsulation.
+**Limiti:** il giocatore deve effettivamente partecipare per i minuti specificati; non stimiamo convocazione, titolarità o infortuni. Il fattore difensivo è descrittivo e non è corretto per casa/trasferta o forza del calendario. Il modello non è calibrato né validato su partite future. Il disallineamento temporale tra statistiche aggregate dei giocatori e storico delle partite impedisce di dichiarare queste stime come previsioni senza leakage. Per valutare accuratezza servirebbero dati giocatore-partita datati, separazione cronologica tra stima e valutazione, e misure di calibrazione. Non usiamo coefficienti arbitrari di ruolo, tackle o rating come se fossero probabilità.
 
-Algorithm Design: Implementing mathematical formulas to adjust probabilities dynamically.
+### Analisi descrittiva
 
-Data Handling: Separation of concerns between data loading (Deserializers) and data modeling.
+La correlazione di Pearson confronta **xG totali osservati** con **gol totali** dello stesso snapshot. Include gli zeri osservati, esclude coppie mancanti e gestisce campioni piccoli/costanti. Il CSV contiene gli xG totali: non occorre ricostruirli da un tasso arrotondato. La correlazione positiva è descrittiva: volume di gioco, eterogeneità e dipendenze tra giocatori limitano l'interpretazione del p-value. Non dimostra capacità predittiva su nuove partite.
 
-Author: Fabrizio Sabatino
+I grafici mostrano gol/xG (almeno 500 minuti), distribuzione del rating e classifica Elo delle squadre attive di una divisione. Le tabelle possono essere esportate in CSV e i grafici in PNG.
+
+## Organizzazione
+
+```text
+goalmind/
+├── main.py                       # Caricamento comune e avvio CLI
+├── goalmind.ipynb                 # Presentazione e analisi con moduli importati
+├── app/
+│   ├── cli.py                    # Interfaccia a comandi
+│   └── elo_application.py        # Input, pulizia, Elo, statistiche e grafici
+├── data_structure/
+│   ├── player.py                 # Statistiche e stima Poisson
+│   ├── team.py                   # Elo e statistiche difensive
+│   ├── match.py                  # Risultato valido di una partita
+│   └── names.py                  # Normalizzazione e alias
+├── import/                       # CSV originali conservati
+├── tests/test_goalmind.py         # Test di regressione e sui dati reali
+├── docs/CORREZIONI.md             # Problemi risolti e domande per la discussione
+├── requirements.txt              # Dipendenze dell'analisi con versioni
+└── requirements-notebook.txt     # Dipendenze aggiuntive per Jupyter
+```
+
+## Verifica
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+I test coprono formula Poisson, minuti, dati mancanti, risultati non validi, ordinamento, filtri temporali, duplicati, omonimi, alias, somma dei rating e ricalcolo Elo. Tutte le sette celle di codice del notebook sono state eseguite in ordine tramite IPython sui CSV originali e i grafici sono stati controllati. L'avvio del kernel Jupyter non è stato verificabile nell'ambiente di correzione, che blocca i socket: eseguire anche **Restart Kernel and Run All Cells** sul proprio computer.
+
+Per la discussione, studiare `docs/CORREZIONI.md` ed essere in grado di spiegare ogni passaggio. Le correzioni sono state preparate con assistenza AI e verificate; la comprensione del codice e il completamento della provenienza dei dati restano necessari prima della consegna.
+
+Autore: Fabrizio Sabatino.
