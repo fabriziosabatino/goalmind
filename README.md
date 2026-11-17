@@ -3,6 +3,17 @@
 Progetto Python per esplorare statistiche dei calciatori, risultati storici ed Elo delle squadre. La domanda è: **come cambia una stima della probabilità di segnare almeno un gol al variare dei minuti giocati e dei gol subiti dall'avversaria?**
 
 Il progetto offre un notebook Jupyter per la presentazione e una CLI. Entrambe le interfacce importano gli stessi moduli: il notebook non duplica la logica dell'analisi.
+È disponibile anche una piccola app web in Streamlit, che usa gli stessi calcoli del progetto.
+
+Dopo aver attivato l'ambiente virtuale, avviala così:
+
+```bash
+python -m pip install -r requirements.txt
+python -m streamlit run streamlit_app.py
+```
+
+L'app permette di esplorare i calciatori, costruire una stima dei gol e consultare o simulare i rating Elo. I CSV restano quelli già presenti in `import/`.
+
 
 ## Installazione ed esecuzione
 
